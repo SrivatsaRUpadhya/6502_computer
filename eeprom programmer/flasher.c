@@ -16,12 +16,12 @@
 #define DATA_FILE "./data"
 #define BYTES_PER_LINE 8
 #define MAX_DATA_FILE_SIZE 32768
-#define CMD_LEN 64
+#define CMD_LEN 63
 #define DATA_OFFSET 3
 #define OP_WRITE 0x80
 #define OP_READ 0x00
 #define MAX_BYTES_PER_READ 62
-#define MAX_BYTES_PER_WRITE 61
+#define MAX_BYTES_PER_WRITE 60
 #define ADDRESS_OFFSET 1
 #define ADDRESS_SIZE 2
 #define RES_PACKET_SIZE 63
@@ -124,7 +124,7 @@ void write_data(short addr, FILE *data_fp, int port_fd, int data_file_size) {
   uint8_t cmd[CMD_LEN];
 
   while (data_file_size != 0) {
-    sleep(3);
+    printf("start addr: %d\n", addr);
     memset(cmd, 0, sizeof(cmd));
     int n =
         fread(cmd + DATA_OFFSET, sizeof(uint8_t), MAX_BYTES_PER_WRITE, data_fp);
@@ -133,6 +133,7 @@ void write_data(short addr, FILE *data_fp, int port_fd, int data_file_size) {
     dump_cmd_data(cmd, sizeof(cmd));
     write(port_fd, cmd, sizeof(cmd));
     fsync(port_fd);
+    read(port_fd, NULL, RES_PACKET_SIZE);
     data_file_size -= n;
     addr += n;
   }
@@ -160,7 +161,7 @@ void dump_eeprom(int port_fd, short addr) {
     read(port_fd, cmd, RES_PACKET_SIZE);
     printf("bytes read: %d\n", cmd[0]);
     bytes_read += cmd[0];
-    dump_cmd_data(cmd + RES_DATA_OFFSET, RES_PACKET_SIZE - 1);
+    dump_cmd_data(cmd + RES_DATA_OFFSET, RES_PACKET_SIZE);
     addr += bytes_read;
     if (bytes_read == EEPROM_SIZE) {
       break;

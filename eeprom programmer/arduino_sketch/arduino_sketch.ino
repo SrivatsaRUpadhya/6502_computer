@@ -7,7 +7,7 @@
 #define ADDRESS_LINE_SIZE 15
 #define MAX_ADDRESS 32768
 #define SERIAL_DATA_MASK 0x8000
-#define PACKET_SIZE 64
+#define PACKET_SIZE 63
 #define OP_MASK 0x80
 #define WRITE_MODE_MASK 0x40
 #define BYTE_COUNT_MASK 0x7E
@@ -19,6 +19,7 @@
 #define RES_PACKET_SIZE 63
 
 byte data_pins[] = { 6, 7, 8, 9, 10, 11, 12, 13 };
+byte res_buf[RES_PACKET_SIZE];
 
 void op_unknown(int op) {
   Serial.print("unknow operation: ");
@@ -37,14 +38,14 @@ short getAddr(byte *buf) {
 }
 void setAddress(short addr) {
   // send first byte MSBFIRST
-  shiftOut(SDA, SRCLK, MSBFIRST, addr & 0xFF00);
+  shiftOut(SDA, SRCLK, MSBFIRST, (addr & 0xFF00) >> 8);
   // send second byte MSBFIRST
   shiftOut(SDA, SRCLK, MSBFIRST, addr & 0x00FF);
 
   // Pulse the Register clock to latch in the address to storage register
   digitalWrite(RCLK, HIGH);
   digitalWrite(RCLK, LOW);
-  delay(20);
+  delay(10);
   // TODO: remove debug statements
   // Serial.print("address set to: ");
   // Serial.flush();
@@ -57,6 +58,10 @@ void writeData(byte *buf, short addr, byte bytes_count) {
     setAddress(addr++);
     writeToAddress(buf[DATA_OFFSET + idx]);
   }
+  memset(res_buf, 0, RES_PACKET_SIZE);
+  res_buf[0] = bytes_count;
+  Serial.write(res_buf, RES_PACKET_SIZE);
+  Serial.flush();
 }
 
 void writeToAddress(byte data) {
@@ -76,16 +81,15 @@ void writeToAddress(byte data) {
 }
 
 void readData(short startAddr, byte bytesCount) {
-  byte buf[RES_PACKET_SIZE];
-  memset(buf, 0, RES_PACKET_SIZE);
+  memset(res_buf, 0, RES_PACKET_SIZE);
   byte i = 0;
   for (i = 0; i < bytesCount; i++) {
     setAddress(startAddr++);
-    buf[RES_DATA_OFFSET + i] = readFromAddress();
+    res_buf[RES_DATA_OFFSET + i] = readFromAddress();
   }
-  buf[RES_LEN_OFFSET] = i + 1;
+  res_buf[RES_LEN_OFFSET] = i;
 
-  Serial.write(buf, RES_PACKET_SIZE);
+  Serial.write(res_buf, RES_PACKET_SIZE);
   Serial.flush();
 }
 
@@ -130,7 +134,7 @@ void setup() {
 }
 
 void loop() {
-  byte buf[64];
+  byte buf[PACKET_SIZE];
   memset(buf, 0, sizeof(buf));
   readPacket(buf);
 
