@@ -54,7 +54,7 @@ void setAddress(short addr) {
 }
 
 void writeData(byte *buf, short addr, byte bytes_count) {
-  for (byte idx = 0; idx < bytes_count; idx++) {
+  for (byte idx = 0; idx < bytes_count && (addr < MAX_ADDRESS); idx++) {
     setAddress(addr++);
     writeToAddress(buf[DATA_OFFSET + idx]);
   }
@@ -83,7 +83,7 @@ void writeToAddress(byte data) {
 void readData(short startAddr, byte bytesCount) {
   memset(res_buf, 0, RES_PACKET_SIZE);
   byte i = 0;
-  for (i = 0; i < bytesCount; i++) {
+  for (i = 0; i < bytesCount && (startAddr < MAX_ADDRESS); i++) {
     setAddress(startAddr++);
     res_buf[RES_DATA_OFFSET + i] = readFromAddress();
   }
