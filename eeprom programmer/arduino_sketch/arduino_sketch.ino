@@ -19,7 +19,7 @@
 #define RES_PACKET_SIZE 63
 
 byte data_pins[] = { 6, 7, 8, 9, 10, 11, 12, 13 };
-byte res_buf[RES_PACKET_SIZE];
+byte buf[RES_PACKET_SIZE];
 
 void op_unknown(int op) {
   Serial.print("unknow operation: ");
@@ -31,12 +31,12 @@ void setDataMode(byte mode) {
     pinMode(data_pins[i], mode);
   }
 }
-short getAddr(byte *buf) {
-  short addr = -1;
+unsigned short getAddr(byte *buf) {
+  unsigned short addr = -1;
   memcpy(&addr, buf + 1, 2);
   return addr;
 }
-void setAddress(short addr) {
+void setAddress(unsigned short addr) {
   // send first byte MSBFIRST
   shiftOut(SDA, SRCLK, MSBFIRST, (addr & 0xFF00) >> 8);
   // send second byte MSBFIRST
@@ -44,23 +44,19 @@ void setAddress(short addr) {
 
   // Pulse the Register clock to latch in the address to storage register
   digitalWrite(RCLK, HIGH);
+  delayMicroseconds(10);
   digitalWrite(RCLK, LOW);
-  delay(10);
-  // TODO: remove debug statements
-  // Serial.print("address set to: ");
-  // Serial.flush();
-  // Serial.println(addr);
-  // Serial.flush();
 }
 
 void writeData(byte *buf, short addr, byte bytes_count) {
   for (byte idx = 0; idx < bytes_count && (addr < MAX_ADDRESS); idx++) {
     setAddress(addr++);
     writeToAddress(buf[DATA_OFFSET + idx]);
+    delay(10);
   }
-  memset(res_buf, 0, RES_PACKET_SIZE);
-  res_buf[0] = bytes_count;
-  Serial.write(res_buf, RES_PACKET_SIZE);
+  memset(buf, 0, RES_PACKET_SIZE);
+  buf[0] = bytes_count;
+  Serial.write(buf, RES_PACKET_SIZE);
   Serial.flush();
 }
 
@@ -80,16 +76,17 @@ void writeToAddress(byte data) {
   digitalWrite(WE, HIGH);
 }
 
-void readData(short startAddr, byte bytesCount) {
-  memset(res_buf, 0, RES_PACKET_SIZE);
-  byte i = 0;
-  for (i = 0; i < bytesCount && (startAddr < MAX_ADDRESS); i++) {
+void readData(unsigned short startAddr, byte bytesCount) {
+  memset(buf, 0, RES_PACKET_SIZE);
+  byte idx = 0;
+  for (idx = 0; idx < bytesCount && (startAddr < MAX_ADDRESS); idx++) {
     setAddress(startAddr++);
-    res_buf[RES_DATA_OFFSET + i] = readFromAddress();
+    buf[RES_DATA_OFFSET + idx] = readFromAddress();
+    delay(2);
   }
-  res_buf[RES_LEN_OFFSET] = i;
+  buf[RES_LEN_OFFSET] = idx;
 
-  Serial.write(res_buf, RES_PACKET_SIZE);
+  Serial.write(buf, RES_PACKET_SIZE);
   Serial.flush();
 }
 
@@ -106,10 +103,7 @@ byte readFromAddress() {
     res = (res << 1);
     res |= b;
   }
-
-  // Serial.print("Data: ");
-  // Serial.println(res);
-  // Serial.flush();
+  digitalWrite(OE, LOW);
   return res;
 }
 
@@ -134,16 +128,14 @@ void setup() {
 }
 
 void loop() {
-  byte buf[PACKET_SIZE];
   memset(buf, 0, sizeof(buf));
   readPacket(buf);
 
   byte header = buf[0];
-  byte op = header & OP_MASK;                               // first bit of header indicates operation
-  byte data_bytes_count = (header & BYTE_COUNT_MASK) >> 1;  // number of bytes to write
+  byte op = header & OP_MASK;                                       // first bit of header indicates operation
+  byte data_bytes_count = ((byte)(header & BYTE_COUNT_MASK)) >> 1;  // number of bytes to write
 
-  short addr = getAddr(buf);
-  delay(10);
+  unsigned short addr = getAddr(buf);
 
   switch (op) {
     case OP_READ:
